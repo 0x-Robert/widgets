@@ -1,7 +1,10 @@
 import { useWeb3React } from '@web3-react/core'
 import { SupportedChainId } from 'constants/chains'
 import { ChainError, useSwapInfo } from 'hooks/swap'
+import { SwapApprovalState } from 'hooks/swap/useSwapApproval'
 import { useIsWrap } from 'hooks/swap/useWrapCallback'
+import { AllowanceState } from 'hooks/usePermit2Allowance'
+import { usePermit2 } from 'hooks/useSyncFlags'
 import { useMemo } from 'react'
 import { Field } from 'state/swap'
 
@@ -16,17 +19,29 @@ export default function SwapActionButton() {
     [Field.INPUT]: { currency: inputCurrency, amount: inputCurrencyAmount, balance: inputCurrencyBalance },
     [Field.OUTPUT]: { currency: outputCurrency },
     error,
+    approval,
+    allowance,
     trade: { trade },
   } = useSwapInfo()
+  const permit2Enabled = usePermit2()
   const isWrap = useIsWrap()
-  const isDisabled = useMemo(
-    () =>
+  const isDisabled = useMemo(() => {
+    if (permit2Enabled) {
+      if (allowance.state === AllowanceState.REQUIRED) {
+        return true
+      }
+    } else {
+      if (approval.state !== SwapApprovalState.APPROVED) {
+        return true
+      }
+    }
+    return (
       error !== undefined ||
       (!isWrap && !trade) ||
       !(inputCurrencyAmount && inputCurrencyBalance) ||
-      inputCurrencyBalance.lessThan(inputCurrencyAmount),
-    [error, isWrap, trade, inputCurrencyAmount, inputCurrencyBalance]
-  )
+      inputCurrencyBalance.lessThan(inputCurrencyAmount)
+    )
+  }, [permit2Enabled, error, isWrap, trade, inputCurrencyAmount, inputCurrencyBalance, allowance.state, approval.state])
 
   if (!account || !isActive) {
     return <ConnectWalletButton />
